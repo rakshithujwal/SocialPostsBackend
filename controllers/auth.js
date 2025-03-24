@@ -10,123 +10,94 @@ const User = require("../models/user");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-exports.signup = (req, res, next) => {
-  console.log(req.body);
+// User Signup
+exports.signup = async (req, res, next) => {
+  try {
+    console.log(req.body);
 
-  const errors = validationResult(req);
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw createError(422, "Validation failed", errors.array());
+    }
 
-  if (!errors.isEmpty()) {
-    const error = new Error("Validation Failed");
-    error.statusCode = 422;
-    error.data = errors.array();
-    throw error;
+    const { email, name, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const user = new User({ name, email, password: hashedPassword });
+    const result = await user.save();
+
+    res
+      .status(201)
+      .json({ message: "User created successfully", userId: result._id });
+  } catch (err) {
+    next(handleError(err));
   }
-  const { email, name, password } = req.body;
-
-  bcrypt
-    .hash(password, 12)
-    .then((hashedPassword) => {
-      const user = new User({
-        name: name,
-        email: email,
-        password: hashedPassword,
-      });
-      return user.save();
-    })
-    .then((result) => {
-      res.status(201).json({ message: "User Created", userId: result._id });
-    })
-    .catch((err) => {
-      if (!err.statusCode) {
-        err.statusCode = 500;
-      }
-      next(err);
-    });
 };
 
-exports.login = (req, res, next) => {
-  const { email, password } = req.body;
-  let loadedUser;
-  User.findOne({ email: email })
-    .then((user) => {
-      if (!user) {
-        const error = new Error("User Not Found");
-        error.statusCode = 401;
-        throw error;
+// User Login
+exports.login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) throw createError(401, "User not found");
+
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) throw createError(401, "Incorrect password");
+
+    const token = jwt.sign(
+      { email: user.email, userId: user._id.toString() },
+      JWT_SECRET,
+      {
+        expiresIn: "1h",
       }
+    );
 
-      loadedUser = user;
-
-      return bcrypt.compare(password, user.password);
-    })
-    .then((isEqual) => {
-      if (!isEqual) {
-        const error = new Error("Incorrect Password");
-        error.statusCode = 401;
-        throw error;
-      }
-
-      const token = jwt.sign(
-        {
-          email: loadedUser.email,
-          userId: loadedUser._id.toString(),
-        },
-        JWT_SECRET,
-        { expiresIn: "1h" }
-      );
-
-      res.status(200).json({ token: token, userId: loadedUser._id.toString() });
-    })
-    .catch((err) => {
-      if (!err.statusCode) {
-        err.statusCode = 500;
-      }
-      next(err);
-    });
+    res.status(200).json({ token, userId: user._id.toString() });
+  } catch (err) {
+    next(handleError(err));
+  }
 };
 
-exports.getUserStatus = (req, res, next) => {
-  User.findById(req.userId)
-    .then((user) => {
-      if (!user) {
-        const error = new Error("User not Found");
-        error.statusCode = 404;
-        throw error;
-      }
-      res.status(200).json({
-        status: user.status,
-      });
-    })
-    .catch((err) => {
-      if (!err.statusCode) {
-        err.statusCode = 500;
-      }
-      next(err);
-    });
+// Get User Status
+exports.getUserStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) throw createError(404, "User not found");
+
+    res.status(200).json({ status: user.status });
+  } catch (err) {
+    next(handleError(err));
+  }
 };
 
-exports.updateUserStatus = (req, res, next) => {
-  const newStatus = req.body.status;
-  User.findById(req.userId)
-    .then((user) => {
-      if (!user) {
-        const error = new Error("User Not Found");
-        error.statusCode = 401;
-        throw error;
-      }
-      user.status = newStatus;
+// Update User Status
+exports.updateUserStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
 
-      return user.save();
-    })
-    .then((result) => {
-      res.status(200).json({
-        message: "User Status Updated",
-      });
-    })
-    .catch((err) => {
-      if (!err.statusCode) {
-        err.statusCode = 500;
-      }
-      next(err);
-    });
+    const user = await User.findById(req.userId);
+    if (!user) throw createError(404, "User not found");
+
+    user.status = status;
+    await user.save();
+
+    res.status(200).json({ message: "User status updated successfully" });
+  } catch (err) {
+    next(handleError(err));
+  }
+};
+
+// Utility function for creating errors
+const createError = (statusCode, message, data = null) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  if (data) error.data = data;
+  return error;
+};
+
+// Utility function to handle errors
+const handleError = (err) => {
+  if (!err.statusCode) err.statusCode = 500;
+  return err;
 };
