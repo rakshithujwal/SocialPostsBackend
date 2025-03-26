@@ -4,11 +4,12 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const multer = require("multer");
+const { graphqlHTTP } = require("express-graphql");
+
+const graphqlSchema = require("./graphql/schema");
+const graphqlResolver = require("./graphql/resolvers");
 
 const DB_URL = process.env.DB_URL;
-
-const feedRoutes = require("./routes/feed");
-const authRoutes = require("./routes/auth");
 
 const app = express();
 
@@ -49,8 +50,27 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/feed", feedRoutes);
-app.use("/auth", authRoutes);
+app.use(
+  "/graphql",
+  graphqlHTTP({
+    schema: graphqlSchema,
+    rootValue: graphqlResolver,
+    graphiql: true,
+    formatError(err) {
+      if (!err.originalError) {
+        return err;
+      }
+      const data = err.originalError.data;
+      const message = err.message || "An error occurred";
+      const code = err.originalError.code || 500;
+      return {
+        message: message,
+        status: code,
+        data: data,
+      };
+    },
+  })
+);
 
 app.use((error, req, res, next) => {
   console.log("Error Handling Middleware===>", error);
@@ -64,11 +84,6 @@ app.use((error, req, res, next) => {
 mongoose
   .connect(DB_URL)
   .then((result) => {
-    const server = app.listen(8080);
-
-    const io = require("./socket").init(server);
-    io.on("connection", (client) => {
-      console.log("Client Connected");
-    });
+    app.listen(8080);
   })
   .catch((err) => console.log("Connection Error===>,err"));
