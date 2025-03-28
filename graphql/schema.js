@@ -11,6 +11,10 @@ type Post {
     updatedAt: String!
 }
 
+type PostData {
+    posts: [Post!]!
+    totalPosts: Int!
+}
 
 type User {
     _id: ID!
@@ -18,7 +22,7 @@ type User {
     email: String!
     password: String!
     status: String!
-    posts:[Post!]!
+    posts: [Post!]!
 }
 
 type AuthData {
@@ -32,15 +36,26 @@ input UserInputData {
     password: String!
 }
 
+input PostInputData {
+    title: String!
+    content: String!
+    imageUrl: String!
+}
+
 type RootQuery {
     login(email: String!, password: String!): AuthData!
+    posts(page: Int!): PostData!
+    post(id: ID!): Post!
 }
 
 type RootMutation {
     createUser(userInput: UserInputData): User!
+    createPost(postInput: PostInputData): Post!
+    updatePost(id: ID!, postInput: PostInputData!): Post!
+    deletePost(id: ID!): Boolean!
 }
 
-schema{
+schema {
     query: RootQuery
     mutation: RootMutation
 }`);

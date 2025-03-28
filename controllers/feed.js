@@ -2,6 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const { validationResult } = require("express-validator");
 
+const { clearImage } = require("../util/file");
+
 const io = require("../socket");
 const Post = require("../models/post");
 const User = require("../models/user");
@@ -167,14 +169,6 @@ exports.deletePost = async (req, res, next) => {
   } catch (err) {
     next(handleError(err));
   }
-};
-
-// Utility function to delete images
-const clearImage = (filePath) => {
-  const fullPath = path.join(__dirname, "..", filePath);
-  fs.unlink(fullPath, (err) => {
-    if (err) console.log("Error while deleting image:", err);
-  });
 };
 
 // Utility function for error handling
